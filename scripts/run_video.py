@@ -7,6 +7,11 @@ from time import perf_counter
 import numpy as np
 
 from semanticnav.config import load_config
+from semanticnav.depth import (
+    DepthModelUnavailable,
+    RelativeDepthEstimator,
+    assign_depth_levels,
+)
 from semanticnav.tracking import YOLOByteTracker
 from semanticnav.video import read_video
 
@@ -44,6 +49,11 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Override model.confidence for an experiment",
     )
+    parser.add_argument(
+        "--depth",
+        action="store_true",
+        help="Enable relative Depth Anything V2 inference",
+    )
     return parser
 
 
@@ -65,6 +75,12 @@ def main() -> None:
         image_size=image_size,
         tracker_name=config.tracker.name,
     )
+    depth_estimator = None
+    if args.depth and config.depth.enabled:
+        try:
+            depth_estimator = RelativeDepthEstimator(config.depth.model_name)
+        except DepthModelUnavailable as error:
+            print(f"warning: {error}; depth disabled")
 
     print(
         f"model={config.model.name} tracker={config.tracker.name} "
@@ -74,6 +90,8 @@ def main() -> None:
     processed_frames = 0
     inference_times: list[float] = []
     observed_track_ids: set[int] = set()
+    current_depth_map = None
+    depth_inferences = 0
 
     try:
         for frame_index, timestamp_s, frame in read_video(args.input):
@@ -82,6 +100,19 @@ def main() -> None:
             objects, inference_ms = tracker.track(frame)
             processed_frames += 1
             inference_times.append(inference_ms)
+            if depth_estimator is not None and (
+                current_depth_map is None
+                or (processed_frames - 1) % config.depth.frame_interval == 0
+            ):
+                current_depth_map = depth_estimator.infer(frame)
+                depth_inferences += 1
+            if current_depth_map is not None:
+                objects = assign_depth_levels(
+                    objects,
+                    current_depth_map,
+                    near_threshold=config.depth.near_threshold,
+                    far_threshold=config.depth.far_threshold,
+                )
             observed_track_ids.update(obj.track_id for obj in objects)
             print(
                 f"frame={frame_index} timestamp_s={timestamp_s:.3f} "
@@ -92,6 +123,7 @@ def main() -> None:
                 print(
                     f"  id={obj.track_id} class={obj.class_name} "
                     f"confidence={obj.confidence:.3f} "
+                    f"depth={obj.depth_level} relative_depth={obj.relative_depth} "
                     f"bbox=[{bbox.x1:.1f},{bbox.y1:.1f},{bbox.x2:.1f},{bbox.y2:.1f}]"
                 )
 
@@ -108,7 +140,8 @@ def main() -> None:
     print(
         f"processed_frames={processed_frames} average_fps={average_fps:.2f} "
         f"average_inference_ms={average_inference_ms:.2f} "
-        f"unique_track_ids={len(observed_track_ids)}"
+        f"unique_track_ids={len(observed_track_ids)} "
+        f"depth_inferences={depth_inferences}"
     )
 
 

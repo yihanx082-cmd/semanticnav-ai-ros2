@@ -29,5 +29,6 @@ def test_default_config_uses_relative_output_path():
 
     assert config.model.confidence == 0.25
     assert config.depth.frame_interval == 3
+    assert config.depth.model_name == "depth-anything/Depth-Anything-V2-Small-hf"
     assert config.output.root == Path("outputs")
     assert not config.output.root.is_absolute()

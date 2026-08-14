@@ -16,6 +16,7 @@ class TrackerConfig(BaseModel):
 
 class DepthConfig(BaseModel):
     enabled: bool
+    model_name: str
     frame_interval: int = Field(gt=0)
     near_threshold: float = Field(ge=0.0, le=1.0)
     far_threshold: float = Field(ge=0.0, le=1.0)
