@@ -63,3 +63,75 @@ def draw_tracks(
             cv2.LINE_AA,
         )
     return rendered
+
+
+def render_semantic_map(
+    grid: NDArray[np.uint8],
+    cell_size: int = 16,
+) -> NDArray[np.uint8]:
+    """Render a labeled local semantic sketch map as a BGR image."""
+
+    rows, columns = grid.shape
+    top_margin = 52
+    bottom_margin = 38
+    map_height = rows * cell_size
+    map_width = columns * cell_size
+    image = np.full(
+        (top_margin + map_height + bottom_margin, map_width, 3),
+        255,
+        dtype=np.uint8,
+    )
+    colors = {
+        0: (245, 245, 245),
+        100: (0, 210, 255),
+        200: (0, 90, 255),
+        255: (40, 40, 40),
+    }
+    for row in range(rows):
+        for column in range(columns):
+            value = int(grid[row, column])
+            color = colors[255 if value >= 255 else 200 if value >= 200 else 100 if value >= 100 else 0]
+            x1 = column * cell_size
+            y1 = top_margin + row * cell_size
+            cv2.rectangle(
+                image,
+                (x1, y1),
+                (x1 + cell_size - 1, y1 + cell_size - 1),
+                color,
+                thickness=-1,
+            )
+            cv2.rectangle(
+                image,
+                (x1, y1),
+                (x1 + cell_size - 1, y1 + cell_size - 1),
+                (210, 210, 210),
+                thickness=1,
+            )
+
+    robot_center = (
+        (columns // 2) * cell_size + cell_size // 2,
+        top_margin + (rows - 1) * cell_size + cell_size // 2,
+    )
+    cv2.circle(image, robot_center, max(4, cell_size // 3), (255, 80, 40), -1)
+    cv2.putText(
+        image,
+        "Local Semantic Sketch Map (Non-metric)",
+        (10, 32),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.65,
+        (20, 20, 20),
+        2,
+        cv2.LINE_AA,
+    )
+    legend_y = top_margin + map_height + 25
+    cv2.putText(
+        image,
+        "Robot=blue  Obstacle=yellow  Avoid=orange  Blocked=black",
+        (8, legend_y),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.38,
+        (20, 20, 20),
+        1,
+        cv2.LINE_AA,
+    )
+    return image
