@@ -1,0 +1,21 @@
+model:
+  name: yolo26n.pt
+  confidence: 0.25
+  image_size: 640
+
+tracker:
+  name: bytetrack.yaml
+
+depth:
+  enabled: true
+  frame_interval: 3
+  near_threshold: 0.70
+  far_threshold: 0.35
+
+mapping:
+  rows: 30
+  columns: 30
+  obstacle_inflation_cells: 2
+
+output:
+  root: outputs
