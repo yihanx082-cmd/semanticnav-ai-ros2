@@ -1,19 +1,14 @@
-"""Run YOLO and ByteTrack on a local video and print tracking metrics."""
+"""Run the end-to-end SemanticNav pipeline on a local video."""
 
 import argparse
 from pathlib import Path
-from time import perf_counter
-
-import numpy as np
-
 from semanticnav.config import load_config
 from semanticnav.depth import (
     DepthModelUnavailable,
     RelativeDepthEstimator,
-    assign_depth_levels,
 )
+from semanticnav.pipeline import VideoPipeline
 from semanticnav.tracking import YOLOByteTracker
-from semanticnav.video import read_video
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -54,6 +49,17 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Enable relative Depth Anything V2 inference",
     )
+    parser.add_argument(
+        "--task",
+        default="去椅子附近，避开人和宠物",
+        help="Natural-language semantic navigation task",
+    )
+    parser.add_argument(
+        "--output-root",
+        type=Path,
+        default=Path("outputs"),
+        help="Root directory for run artifacts",
+    )
     return parser
 
 
@@ -86,63 +92,36 @@ def main() -> None:
         f"model={config.model.name} tracker={config.tracker.name} "
         f"image_size={image_size} confidence={confidence:g}"
     )
-    started = perf_counter()
-    processed_frames = 0
-    inference_times: list[float] = []
-    observed_track_ids: set[int] = set()
-    current_depth_map = None
-    depth_inferences = 0
+    pipeline = VideoPipeline(
+        tracker,
+        depth_estimator,
+        depth_frame_interval=config.depth.frame_interval,
+        near_threshold=config.depth.near_threshold,
+        far_threshold=config.depth.far_threshold,
+        grid_shape=(config.mapping.rows, config.mapping.columns),
+        obstacle_inflation_cells=config.mapping.obstacle_inflation_cells,
+    )
 
-    try:
-        for frame_index, timestamp_s, frame in read_video(args.input):
-            if frame_index < args.start_frame:
-                continue
-            objects, inference_ms = tracker.track(frame)
-            processed_frames += 1
-            inference_times.append(inference_ms)
-            if depth_estimator is not None and (
-                current_depth_map is None
-                or (processed_frames - 1) % config.depth.frame_interval == 0
-            ):
-                current_depth_map = depth_estimator.infer(frame)
-                depth_inferences += 1
-            if current_depth_map is not None:
-                objects = assign_depth_levels(
-                    objects,
-                    current_depth_map,
-                    near_threshold=config.depth.near_threshold,
-                    far_threshold=config.depth.far_threshold,
-                )
-            observed_track_ids.update(obj.track_id for obj in objects)
-            print(
-                f"frame={frame_index} timestamp_s={timestamp_s:.3f} "
-                f"objects={len(objects)} inference_ms={inference_ms:.2f}"
-            )
-            for obj in objects:
-                bbox = obj.bbox
-                print(
-                    f"  id={obj.track_id} class={obj.class_name} "
-                    f"confidence={obj.confidence:.3f} "
-                    f"depth={obj.depth_level} relative_depth={obj.relative_depth} "
-                    f"bbox=[{bbox.x1:.1f},{bbox.y1:.1f},{bbox.x2:.1f},{bbox.y2:.1f}]"
-                )
+    def report_progress(processed: int, total: int) -> None:
+        if processed == 1 or processed % 10 == 0 or processed == total:
+            print(f"progress={processed}/{total}")
 
-            if args.max_frames is not None and processed_frames >= args.max_frames:
-                break
-    finally:
-        tracker.reset()
-
-    elapsed_s = perf_counter() - started
-    average_fps = processed_frames / elapsed_s if elapsed_s > 0 else 0.0
-    average_inference_ms = (
-        float(np.mean(inference_times)) if inference_times else 0.0
+    summary = pipeline.run(
+        args.input,
+        args.task,
+        args.output_root,
+        progress=report_progress,
+        start_frame=args.start_frame,
+        max_frames=args.max_frames,
     )
     print(
-        f"processed_frames={processed_frames} average_fps={average_fps:.2f} "
-        f"average_inference_ms={average_inference_ms:.2f} "
-        f"unique_track_ids={len(observed_track_ids)} "
-        f"depth_inferences={depth_inferences}"
+        f"status={summary.status} frames={summary.frame_count} "
+        f"average_fps={summary.average_fps:.2f} "
+        f"average_inference_ms={summary.average_inference_ms:.2f} "
+        f"p95_total_ms={summary.p95_total_ms:.2f} "
+        f"path_success={summary.planning_result.success}"
     )
+    print(f"run_dir={summary.run_dir}")
 
 
 if __name__ == "__main__":

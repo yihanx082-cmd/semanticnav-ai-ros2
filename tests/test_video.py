@@ -4,7 +4,12 @@ import cv2
 import numpy as np
 import pytest
 
-from semanticnav.video import VideoMetadata, open_video_writer, read_video
+from semanticnav.video import (
+    VideoMetadata,
+    get_video_metadata,
+    open_video_writer,
+    read_video,
+)
 
 
 def _make_video(path: Path, frame_count: int = 10) -> None:
@@ -39,6 +44,15 @@ def test_read_video_returns_index_timestamp_and_frame(test_video: Path) -> None:
     assert frames[0][0] == 0
     assert frames[1][1] == pytest.approx(0.1, abs=0.02)
     assert frames[0][2].shape == (240, 320, 3)
+
+
+def test_get_video_metadata_returns_source_properties(test_video: Path) -> None:
+    metadata = get_video_metadata(test_video)
+
+    assert metadata.width == 320
+    assert metadata.height == 240
+    assert metadata.fps == pytest.approx(10.0, abs=0.1)
+    assert metadata.frame_count == 10
 
 
 def test_read_video_timestamps_are_monotonic(test_video: Path) -> None:

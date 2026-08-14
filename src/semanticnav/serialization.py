@@ -6,7 +6,7 @@ from datetime import datetime
 from pathlib import Path
 from uuid import uuid4
 
-from semanticnav.models import FrameResult
+from semanticnav.models import FrameResult, PlannedPath
 
 
 def create_run_directory(root: str | Path) -> tuple[str, Path]:
@@ -18,20 +18,12 @@ def create_run_directory(root: str | Path) -> tuple[str, Path]:
     return run_id, run_dir
 
 
-def write_results_json(
-    path: str | Path,
-    metadata: dict[str, object],
-    frames: list[FrameResult],
-) -> None:
+def write_json(path: str | Path, payload: object) -> None:
     output_path = Path(path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     temporary_path = output_path.with_name(
         f".{output_path.name}.{uuid4().hex}.tmp"
     )
-    payload = {
-        "metadata": metadata,
-        "frames": [frame.model_dump(mode="json") for frame in frames],
-    }
     try:
         with temporary_path.open("w", encoding="utf-8", newline="\n") as file:
             json.dump(payload, file, ensure_ascii=False, indent=2, default=str)
@@ -39,6 +31,20 @@ def write_results_json(
         temporary_path.replace(output_path)
     finally:
         temporary_path.unlink(missing_ok=True)
+
+
+def write_results_json(
+    path: str | Path,
+    metadata: dict[str, object],
+    frames: list[FrameResult],
+) -> None:
+    write_json(
+        path,
+        {
+            "metadata": metadata,
+            "frames": [frame.model_dump(mode="json") for frame in frames],
+        },
+    )
 
 
 def write_metrics_csv(path: str | Path, frames: list[FrameResult]) -> None:
@@ -64,3 +70,13 @@ def write_metrics_csv(path: str | Path, frames: list[FrameResult]) -> None:
                     "object_count": len(frame.objects),
                 }
             )
+
+
+def write_path_csv(path: str | Path, planned_path: PlannedPath) -> None:
+    output_path = Path(path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with output_path.open("w", encoding="utf-8", newline="") as file:
+        writer = csv.DictWriter(file, fieldnames=["step", "row", "column"])
+        writer.writeheader()
+        for step, (row, column) in enumerate(planned_path.cells):
+            writer.writerow({"step": step, "row": row, "column": column})

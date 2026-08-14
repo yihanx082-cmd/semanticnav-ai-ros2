@@ -49,6 +49,20 @@ def _metadata_from_capture(capture: cv2.VideoCapture, path: Path) -> VideoMetada
         raise ValueError(f"视频元数据无效: {path}: {error}") from error
 
 
+def get_video_metadata(path: str | Path) -> VideoMetadata:
+    video_path = Path(path)
+    if not video_path.is_file():
+        raise FileNotFoundError(f"视频文件不存在: {video_path}")
+    capture = cv2.VideoCapture(str(video_path))
+    if not capture.isOpened():
+        capture.release()
+        raise ValueError(f"无法打开视频: {video_path}")
+    try:
+        return _metadata_from_capture(capture, video_path)
+    finally:
+        capture.release()
+
+
 def read_video(path: str | Path) -> Iterator[tuple[int, float, VideoFrame]]:
     """Yield ``(frame_index, timestamp_s, frame)`` and release the capture."""
 

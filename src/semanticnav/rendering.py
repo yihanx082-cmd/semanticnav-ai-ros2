@@ -68,6 +68,7 @@ def draw_tracks(
 def render_semantic_map(
     grid: NDArray[np.uint8],
     cell_size: int = 16,
+    path_cells: list[tuple[int, int]] | None = None,
 ) -> NDArray[np.uint8]:
     """Render a labeled local semantic sketch map as a BGR image."""
 
@@ -107,6 +108,19 @@ def render_semantic_map(
                 (210, 210, 210),
                 thickness=1,
             )
+
+    if path_cells:
+        path_points = np.asarray(
+            [
+                (
+                    column * cell_size + cell_size // 2,
+                    top_margin + row * cell_size + cell_size // 2,
+                )
+                for row, column in path_cells
+            ],
+            dtype=np.int32,
+        ).reshape((-1, 1, 2))
+        cv2.polylines(image, [path_points], False, (200, 40, 180), thickness=3)
 
     robot_center = (
         (columns // 2) * cell_size + cell_size // 2,
