@@ -1,0 +1,4 @@
+scene,frames,expected_classes,detected_classes,id_switches,false_positives,average_fps,path_success,notes
+room,30,chair|couch|vase,chair|couch|vase,0,0,2.623,True,"chair为ID 1且30/30帧；couch为ID 2且28/30帧；两个vase轨迹对应两个可见摆件"
+person,30,person|bottle,bottle|person|refrigerator|vase,1,0,0.786,True,"person为ID 1且30/30帧；同一背景瓶子出现ID 2和12，记为一次轨迹碎片化；抽查帧未确认额外类别为假阳性"
+pet,30,cat|oven,cat|oven|refrigerator,0,3,1.368,True,"cat为ID 1且30/30帧；oven为ID 2且23/30帧；厨房柜体被短暂识别为refrigerator共3帧"
