@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 
+import cv2
 import numpy as np
 import pytest
 
@@ -67,6 +68,7 @@ def test_pipeline_writes_artifacts(test_video: Path, tmp_path: Path) -> None:
     assert summary.frame_count == 10
     for name in [
         "annotated.mp4",
+        "depth_preview.png",
         "results.json",
         "metrics.csv",
         "semantic_map.png",
@@ -74,6 +76,9 @@ def test_pipeline_writes_artifacts(test_video: Path, tmp_path: Path) -> None:
         "run_metadata.json",
     ]:
         assert (summary.run_dir / name).exists()
+    preview = cv2.imread(str(summary.run_dir / "depth_preview.png"))
+    assert preview is not None
+    assert preview.shape[:2] == (240, 320)
     assert len(list(read_video(summary.run_dir / "annotated.mp4"))) == 10
     results = json.loads(
         (summary.run_dir / "results.json").read_text(encoding="utf-8")
@@ -82,6 +87,19 @@ def test_pipeline_writes_artifacts(test_video: Path, tmp_path: Path) -> None:
     assert "distance_m" not in results["frames"][0]["objects"][0]
     assert depth.calls == 4
     assert tracker.reset_count == 1
+
+
+def test_pipeline_without_depth_does_not_write_preview(
+    test_video: Path,
+    tmp_path: Path,
+) -> None:
+    summary = VideoPipeline(FakeTracker(), None).run(
+        test_video,
+        "去椅子附近",
+        tmp_path / "outputs",
+    )
+
+    assert not (summary.run_dir / "depth_preview.png").exists()
 
 
 def test_pipeline_cancellation_releases_writer(

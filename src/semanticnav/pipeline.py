@@ -215,6 +215,15 @@ class VideoPipeline:
             )
             if not cv2.imwrite(str(run_dir / "semantic_map.png"), map_image):
                 raise ValueError("无法写出语义地图")
+            if latest_depth is not None:
+                normalized_depth = np.clip(latest_depth, 0.0, 1.0)
+                depth_gray = (normalized_depth * 255.0).astype(np.uint8)
+                depth_preview = cv2.applyColorMap(depth_gray, cv2.COLORMAP_TURBO)
+                if not cv2.imwrite(
+                    str(run_dir / "depth_preview.png"),
+                    depth_preview,
+                ):
+                    raise ValueError("无法写入深度预览图")
 
             average_fps = len(frames) / processing_elapsed if processing_elapsed else 0.0
             inference_values = [frame.inference_ms for frame in frames]

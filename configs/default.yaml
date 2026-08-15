@@ -1,7 +1,7 @@
 model:
   name: yolo26n.pt
   confidence: 0.25
-  image_size: 640
+  image_size: 480
 
 tracker:
   name: bytetrack.yaml
@@ -9,7 +9,7 @@ tracker:
 depth:
   enabled: true
   model_name: depth-anything/Depth-Anything-V2-Small-hf
-  frame_interval: 3
+  frame_interval: 5
   near_threshold: 0.70
   far_threshold: 0.35
 
